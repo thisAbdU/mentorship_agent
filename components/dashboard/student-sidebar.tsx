@@ -5,15 +5,16 @@ import { Student } from "@/lib/mock-data"
 import { Users, Bot, Settings } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import Link from "next/link"
 
 interface StudentSidebarProps {
   students: Student[]
-  selectedStudent: Student
+  selectedStudent: Student | null
   onSelectStudent: (student: Student) => void
 }
 
 export function StudentSidebar({ students, selectedStudent, onSelectStudent }: StudentSidebarProps) {
-  const getStatusColor = (status: Student["updateStatus"]) => {
+  const getStatusColor = (status?: Student["updateStatus"]) => {
     switch (status) {
       case "on-track":
         return "bg-primary"
@@ -21,6 +22,8 @@ export function StudentSidebar({ students, selectedStudent, onSelectStudent }: S
         return "bg-chart-3"
       case "at-risk":
         return "bg-destructive"
+      default:
+        return "bg-muted"
     }
   }
 
@@ -51,14 +54,14 @@ export function StudentSidebar({ students, selectedStudent, onSelectStudent }: S
               onClick={() => onSelectStudent(student)}
               className={cn(
                 "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
-                selectedStudent.id === student.id
+                selectedStudent?.id === student.id
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50"
               )}
             >
               <Avatar className="h-8 w-8 border border-border">
                 <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                  {student.avatar}
+                  {student.avatar || student.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -67,7 +70,7 @@ export function StudentSidebar({ students, selectedStudent, onSelectStudent }: S
                   <span className={cn("h-2 w-2 rounded-full", getStatusColor(student.updateStatus))} />
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="truncate">{student.curriculum.find(c => c.current)?.name}</span>
+                  <span className="truncate">{student.curriculum?.find(c => c.current)?.name || 'No module'}</span>
                 </div>
               </div>
             </button>
@@ -76,10 +79,12 @@ export function StudentSidebar({ students, selectedStudent, onSelectStudent }: S
       </ScrollArea>
 
       <div className="border-t border-sidebar-border p-4">
-        <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors">
-          <Settings className="h-4 w-4" />
-          Settings
-        </button>
+        <Link href="/settings">
+          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors">
+            <Settings className="h-4 w-4" />
+            Settings
+          </button>
+        </Link>
       </div>
     </div>
   )

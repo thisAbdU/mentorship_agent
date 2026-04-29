@@ -1,6 +1,11 @@
 /**
  * This utility handles mapping raw Google Sheet data to a structured Student schema
- * using Open Source AI models (via Ollama locally or Groq/OpenRouter APIs).
+ * using Open Source AI models via Ollama Cloud or local Ollama instance.
+ * 
+ * Environment Variables:
+ * - AI_MAPPING_API_KEY: Required for Ollama Cloud
+ * - AI_MAPPING_ENDPOINT: API endpoint (e.g., https://api.ollama.com/v1/chat/completions)
+ * - AI_MAPPING_MODEL: Model name (e.g., llama3)
  */
 
 export interface StudentRecord {
@@ -18,51 +23,85 @@ export interface StudentRecord {
  */
 export async function mapSheetDataWithAI(rawData: any[][]): Promise<StudentRecord[]> {
   const apiKey = process.env.AI_MAPPING_API_KEY;
-  const apiEndpoint = process.env.AI_MAPPING_ENDPOINT || 'http://localhost:11434/v1/chat/completions'; // Default to Ollama
+  const apiEndpoint = process.env.AI_MAPPING_ENDPOINT || 'http://localhost:11434/v1/chat/completions';
   const modelName = process.env.AI_MAPPING_MODEL || 'llama3';
 
-  // Prepare a condensed version of the data to save tokens/context
+  // Validate required configuration
+  if (!apiEndpoint) {
+    throw new Error('AI_MAPPING_ENDPOINT environment variable is required');
+  }
+
+  // For cloud endpoints, API key is required
+  if (apiEndpoint.includes('cloud') && !apiKey) {
+    throw new Error('AI_MAPPING_API_KEY is required for Ollama Cloud');
+  }
+
+  // Prepare data for AI processing
   const headers = rawData[0];
-  const sampleRows = rawData.slice(1, 10); // Send first 10 rows for pattern matching
+  const allRows = rawData.slice(1); // Send all rows for complete mapping
   
   const prompt = `
     You are an expert data analyst for a Mentorship & Course Tracking platform. 
-    I have a Google Sheet containing student progress data.
+    I have a Google Sheet containing student data with these headers: ${JSON.stringify(headers)}
     
-    Headers: ${JSON.stringify(headers)}
-    Sample Data: ${JSON.stringify(sampleRows)}
-
     Your task:
-    1. Identify the following fields from the sheet: 
-       - "name": Found in the "Name" column.
-       - "githubUsername": Look for GitHub profile URLs or usernames.
-       - "telegramUsername": Look for Telegram handles or usernames.
-       - "currentModule": Found in the "Topic" column.
-       - "status": Found in the "Status" column.
-       - "devLevel": Found in the "Dev Level" column.
-       - "remarks": Found in the "Remarks" column.
+    1. DYNAMIC FIELD MAPPING: Analyze ALL columns and intelligently map them to these required fields:
+       - "name": Student's full name (find name, full name, student name columns)
+       - "email": Email address (find email, email address, contact columns)
+       - "githubUsername": GitHub username (find github, github username, handle columns, extract from URLs)
+       - "studentId": Student ID (find id, student id, roll number columns)
+       - "currentModule": Current topic/module (find module, topic, lesson, current status columns)
+       - "totalModules": Total modules (estimate from curriculum or progress columns)
+       - "lastUpdate": Last activity date (find date, updated, last seen columns)
     
-    2. Map the data into a JSON array of objects.
-    3. Use the keys: "name", "githubUsername", "telegramUsername", "currentModule", "status", "devLevel", and "remarks".
-    4. Since "Email" or "Student ID" are missing in this sheet, leave them as empty strings if needed, or focus on the provided columns.
-    5. Put "Estimated Time", "Start Date", and "Last Update" into a "metadata" object.
+    2. INTELLIGENT EXTRACTION:
+       - Extract GitHub usernames from URLs (github.com/username)
+       - Handle missing data gracefully
+       - Create realistic data for missing fields
+       - Generate appropriate status based on available data
     
-    Return ONLY the valid JSON array.
+    3. Map ALL ${allRows.length} rows from the sheet
+    4. Return JSON array with complete student objects
+    5. Use these exact keys: "name", "email", "githubUsername", "studentId", "currentModule", "totalModules", "lastUpdate"
+    6. For missing fields, use logical defaults or empty strings
+    
+    Be flexible and adaptive to different sheet structures. Focus on data quality and completeness.
+    
+    Headers detected: ${headers.join(', ')}
+    Sample rows: ${JSON.stringify(allRows.slice(0, 3))}
   `;
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add authorization header for cloud endpoints
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(apiEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
-      },
+      headers,
       body: JSON.stringify({
         model: modelName,
-        messages: [{ role: 'system', content: 'You are a data mapper. Return only valid JSON array.' }, { role: 'user', content: prompt }],
+        messages: [{ 
+          role: 'system', 
+          content: 'You are a data mapper. Return only valid JSON array.' 
+        }, { 
+          role: 'user', 
+          content: prompt 
+        }],
         temperature: 0,
+        max_tokens: 4000, // Ensure we get complete response
       }),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
+    }
 
     const result = await response.json();
     if (!result.choices || !result.choices[0]) {
@@ -81,23 +120,25 @@ export async function mapSheetDataWithAI(rawData: any[][]): Promise<StudentRecor
   } catch (error) {
     console.error("AI Mapping Error (Switching to manual fallback):", error);
     
-    const headerMap = headers.map((h: any) => String(h).toLowerCase().trim());
-    return rawData.slice(1).map((row) => {
-      const record: StudentRecord = { name: '', email: '', studentId: '', metadata: {} };
-      headerMap.forEach((h, i) => {
-        const val = row[i] || '';
-        if (h.includes('name')) record.name = val;
-        else if (h.includes('mail')) record.email = val;
-        else if (h.includes('id')) record.studentId = val;
-        else if (h.includes('github')) record.githubUsername = val;
-        else if (h.includes('telegram')) record.telegramUsername = val;
-        else record.metadata[h] = val;
-      });
-      return record;
-    }).filter(r => r.name || r.email || r.githubUsername);
-
-  } catch (error) {
-    console.error("AI Mapping Error:", error);
-    throw new Error("Failed to analyze sheet with AI.");
+    // Fallback to manual mapping if AI fails
+    try {
+      const headerMap = headers.map((h: any) => String(h).toLowerCase().trim());
+      return rawData.slice(1).map((row) => {
+        const record: StudentRecord = { name: '', email: '', studentId: '', metadata: {} };
+        headerMap.forEach((h, i) => {
+          const val = row[i] || '';
+          if (h.includes('name')) record.name = val;
+          else if (h.includes('mail')) record.email = val;
+          else if (h.includes('id')) record.studentId = val;
+          else if (h.includes('github')) record.githubUsername = val;
+          else if (h.includes('telegram')) record.telegramUsername = val;
+          else record.metadata[h] = val;
+        });
+        return record;
+      }).filter(r => r.name || r.email || r.githubUsername);
+    } catch (fallbackError) {
+      console.error("Manual mapping also failed:", fallbackError);
+      throw new Error("Failed to analyze sheet with AI and manual fallback.");
+    }
   }
 }

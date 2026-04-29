@@ -253,8 +253,12 @@ export function generateAgentFeedback(student: Student): string {
   }
   
   if (student.updateStatus === "needs-attention") {
-    return `Hi ${student.name},\n\nThanks for your recent update on ${student.curriculum.find(c => c.current)?.name}. I see you've been making progress but might need some guidance.\n\nYour latest commit "${latestCommit.message}" looks good. A few suggestions:\n- Consider adding more descriptive commit messages\n- Don't forget to write tests as you go\n\nKeep up the momentum! You're ${progressPercent}% through the curriculum.\n\nBest,\nYour Mentor`
+    const commitMessage = latestCommit?.message || "your recent work";
+    return `Hi ${student.name},\n\nThanks for your recent update on ${student.curriculum.find(c => c.current)?.name}. I see you've been making progress but might need some guidance.\n\nYour latest commit "${commitMessage}" looks good. A few suggestions:\n- Consider adding more descriptive commit messages\n- Don't forget to write tests as you go\n\nKeep up the momentum! You're ${progressPercent}% through the curriculum.\n\nBest,\nYour Mentor`
   }
   
-  return `Hi ${student.name},\n\nExcellent work this week! Your progress on ${student.curriculum.find(c => c.current)?.name} is impressive.\n\nI particularly liked your commit "${latestCommit.message}" - the code quality is ${latestCommit.codeQuality}. You're maintaining great consistency with your updates.\n\nAt ${progressPercent}% completion, you're right on track. Ready to tackle the next challenge?\n\nKeep it up!\n\nBest,\nYour Mentor`
+  const commitMessage = latestCommit?.message || "your recent work";
+  const codeQuality = latestCommit?.codeQuality || "good";
+  
+  return `Hi ${student.name},\n\nExcellent work this week! Your progress on ${student.curriculum.find(c => c.current)?.name} is impressive.\n\nI particularly liked your commit "${commitMessage}" - the code quality is ${codeQuality}. You're maintaining great consistency with your updates.\n\nAt ${progressPercent}% completion, you're right on track. Ready to tackle the next challenge?\n\nKeep it up!\n\nBest,\nYour Mentor`
 }

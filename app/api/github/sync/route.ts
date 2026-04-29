@@ -26,7 +26,7 @@ export async function POST(request: Request) {
             githubActivity: activity,
             githubStatus: activity.length > 0 ? 'connected' : 'repo-not-found',
           };
-        } catch (error) {
+        } catch (error: any) {
           return {
             ...student,
             githubActivity: [],

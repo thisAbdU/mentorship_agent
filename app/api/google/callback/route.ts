@@ -16,8 +16,15 @@ export async function GET(request: Request) {
   }
 
   try {
+    console.log('🔑 Google OAuth: Exchanging code for tokens...');
     const oauth2Client = getOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);
+
+    console.log('✅ Google OAuth: Got tokens', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      expiryDate: tokens.expiry_date
+    });
 
     const cookieStore = await cookies();
     
@@ -33,6 +40,8 @@ export async function GET(request: Request) {
         path: '/',
         maxAge
       });
+      
+      console.log('🍪 Google OAuth: Set access token cookie');
     }
 
     if (tokens.refresh_token) {
@@ -43,6 +52,8 @@ export async function GET(request: Request) {
         path: '/',
         maxAge: 60 * 60 * 24 * 365 // 1 year fallback
       });
+      
+      console.log('🍪 Google OAuth: Set refresh token cookie');
     }
 
     return NextResponse.redirect(new URL('/settings', request.url));

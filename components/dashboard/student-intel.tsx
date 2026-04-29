@@ -1,6 +1,6 @@
 "use client"
 
-import { Student } from "@/lib/mock-data"
+import { DashboardStudent } from "@/lib/mock-data"
 import { MessageCircle, Github, Database, ArrowUpRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 interface StudentIntelProps {
-  student: Student
+  student: DashboardStudent | null
 }
 
 export function StudentIntel({ student }: StudentIntelProps) {

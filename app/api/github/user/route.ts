@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedGitHubClient } from '@/lib/github-auth';
 
 export async function GET() {
   try {
+    // Try to get authenticated user - this will check cookies automatically
+    const { getAuthenticatedGitHubClient } = await import('@/lib/github-auth');
     const octokit = await getAuthenticatedGitHubClient();
     const { data: user } = await octokit.rest.users.getAuthenticated();
     
@@ -12,6 +13,10 @@ export async function GET() {
       avatar_url: user.avatar_url 
     });
   } catch (error: any) {
-    return NextResponse.json({ connected: false, error: error.message }, { status: 401 });
+    return NextResponse.json({ 
+      connected: false, 
+      error: 'not_connected',
+      message: 'GitHub not connected. Please click "Connect with GitHub" button.'
+    });
   }
 }

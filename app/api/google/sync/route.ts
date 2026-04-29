@@ -20,10 +20,30 @@ export async function POST(request: Request) {
     // Call the AI mapping logic (Local Ollama or API-based Open Source models)
     const validStudents = await mapSheetDataWithAI(rawData);
 
+    // Update the student database with AI-mapped data
+    try {
+      const dbResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          students: validStudents,
+          source: 'google-sheets-ai',
+          fileId,
+          tabName
+        })
+      });
+      
+      const dbResult = await dbResponse.json();
+      console.log('✅ Database updated with AI-mapped students:', dbResult.count);
+    } catch (dbError) {
+      console.error('Failed to update database:', dbError);
+    }
+
     return NextResponse.json({ 
       success: true, 
       count: validStudents.length, 
-      students: validStudents 
+      students: validStudents,
+      source: 'ai-mapped'
     });
   } catch (error: any) {
     console.error('Error during sheet sync mapping:', error);

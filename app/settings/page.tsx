@@ -51,13 +51,32 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true)
+    checkConnectionStatus()
+  }, [])
+
+  // Check if we just returned from OAuth callback
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const hasCode = urlParams.has('code')
+      
+      if (hasCode) {
+        // Clear the URL params
+        window.history.replaceState({}, document.title, window.location.pathname)
+        // Refresh connection status after OAuth callback
+        setTimeout(() => checkConnectionStatus(), 1000)
+      }
+    }
+  }, [mounted])
+
+  const checkConnectionStatus = () => {
     // Check Google Auth Status
     fetch('/api/google/files')
       .then(res => res.json())
       .then(data => {
-        if (data.error === 'authentication_required') {
+        if (data.error === 'authentication_required' || data.error === 'not_configured') {
           setGoogleConnected(false)
-        } else if (data.files) {
+        } else if (data.files && data.files.length > 0) {
           setGoogleConnected(true)
           setFiles(data.files)
         } else {
@@ -79,7 +98,7 @@ export default function SettingsPage() {
       })
       .catch(() => setGithubConnected(false))
 
-    // Check Telegram Auth Status
+    // Check Telegram Status
     fetch('/api/telegram/status')
       .then(res => res.json())
       .then(data => {
@@ -91,7 +110,7 @@ export default function SettingsPage() {
         }
       })
       .catch(() => setTelegramConnected(false))
-  }, [])
+  }
 
   const handleGoogleConnect = () => {
     window.location.href = '/api/google/auth'
